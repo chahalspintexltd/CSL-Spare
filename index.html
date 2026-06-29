@@ -1072,7 +1072,7 @@ function renderOrders(){
   const groups = {};
   const groupOrder = [];
   filtered.forEach(o=>{
-    const key = (o.orderNo||o.id).trim();
+    const key = String(o.orderNo||o.id||"").trim();
     if(!groups[key]){ groups[key]=[]; groupOrder.push(key); }
     groups[key].push(o);
   });
@@ -1156,7 +1156,7 @@ function escH(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'
 function gotoPage(p){const tp=Math.ceil(Object.keys(groupOrders()).length/PAGE_SIZE)||1;currentPage=Math.max(1,Math.min(p,tp));renderOrders();}
 function groupOrders(){
   const g={};
-  orders.forEach(o=>{const k=(o.orderNo||o.id).trim();if(!g[k])g[k]=[];g[k].push(o);});
+  orders.forEach(o=>{const k=String(o.orderNo||o.id||"").trim();if(!g[k])g[k]=[];g[k].push(o);});
   return g;
 }
 
@@ -1211,7 +1211,7 @@ function openModal(id=null){
 // ── ADD ITEM TO EXISTING ORDER (same order no) ────────────────
 function openAddItemModal(orderNo){
   // Pre-fill order number and party from existing group
-  const existing = orders.find(o=>(o.orderNo||'').trim()===orderNo);
+  const existing = orders.find(o=>String(o.orderNo||'').trim()===orderNo);
   editingOrderId = null;
   document.getElementById('modalTitle').textContent = 'Add Item to Order: '+orderNo;
   const ps = document.getElementById('f-partySelect');
@@ -1274,9 +1274,11 @@ function snapshotItemRows(){
     name:    (document.getElementById('ir-name-'+row._id)?.value||'').trim(),
     unit:    document.getElementById('ir-unit-'+row._id)?.value||'piece',
     machine: (document.getElementById('ir-machine-'+row._id)?.value||'').trim(),
-    qty:     document.getElementById('ir-qty-'+row._id)?.value||'',
-    rate:    document.getElementById('ir-rate-'+row._id)?.value||'',
-    amount:  document.getElementById('ir-amt-'+row._id)?.value||'',
+    qty:       document.getElementById('ir-qty-'+row._id)?.value||'',
+    basicRate: document.getElementById('ir-basicrate-'+row._id)?.value||'',
+    discount:  document.getElementById('ir-disc-'+row._id)?.value||'',
+    rate:      document.getElementById('ir-rate-'+row._id)?.value||'',
+    amount:    document.getElementById('ir-amt-'+row._id)?.value||'',
   }));
 }
 
@@ -1315,7 +1317,9 @@ function buildItemRowHTML(row, idx){
         </select>
       </div>
       <div class="field"><label>Quantity</label><input type="number" id="ir-qty-${row._id}" value="${row.qty||''}" placeholder="0" oninput="calcRowTotal('${row._id}')"></div>
-      <div class="field"><label>Rate (₹)</label><input type="number" id="ir-rate-${row._id}" value="${row.rate||''}" placeholder="0" oninput="calcRowTotal('${row._id}')"></div>
+      <div class="field"><label>Basic Rate (₹)</label><input type="number" id="ir-basicrate-${row._id}" value="${row.basicRate||''}" placeholder="0" oninput="calcRowTotal('${row._id}')"></div>
+      <div class="field"><label>Discount (%)</label><input type="number" id="ir-disc-${row._id}" value="${row.discount||''}" placeholder="0" min="0" max="100" oninput="calcRowTotal('${row._id}')"></div>
+      <div class="field"><label>Rate After Discount (₹)</label><input type="number" id="ir-rate-${row._id}" value="${row.rate||''}" placeholder="0" readonly style="background:var(--bg);color:var(--success);font-weight:600;"></div>
       <div class="field"><label>Amount (₹)</label><input type="number" id="ir-amt-${row._id}" value="${row.amount||''}" readonly style="background:var(--bg);color:var(--accent);font-weight:700;"></div>
     </div>
   </div>`;
@@ -1362,7 +1366,12 @@ document.addEventListener('click',function(e){
 
 function calcRowTotal(rowId){
   const q=parseFloat(document.getElementById('ir-qty-'+rowId)?.value)||0;
-  const r=parseFloat(document.getElementById('ir-rate-'+rowId)?.value)||0;
+  const basicRate=parseFloat(document.getElementById('ir-basicrate-'+rowId)?.value)||0;
+  const disc=parseFloat(document.getElementById('ir-disc-'+rowId)?.value)||0;
+  const rateAfterDisc = basicRate > 0 ? basicRate * (1 - disc/100) : 0;
+  const rateEl=document.getElementById('ir-rate-'+rowId);
+  if(rateEl && basicRate > 0) rateEl.value = rateAfterDisc.toFixed(2);
+  const r = basicRate > 0 ? rateAfterDisc : (parseFloat(document.getElementById('ir-rate-'+rowId)?.value)||0);
   const el=document.getElementById('ir-amt-'+rowId); if(el) el.value=(q*r).toFixed(2);
   updateGrandTotal();
 }
@@ -1391,13 +1400,16 @@ async function saveOrder(){
       // Editing single existing row
       if(!isAdmin()){ toast('Admin only',true); return; }
       const row = orderItemRows[0];
-      const qty=parseFloat(row.qty)||0, rate=parseFloat(row.rate)||0;
+      const qty=parseFloat(row.qty)||0;
+      const basicRate=parseFloat(row.basicRate)||0;
+      const discount=parseFloat(row.discount)||0;
+      const rate=parseFloat(row.rate)||(basicRate*(1-discount/100))||0;
       const o = orders.find(x=>x.id===editingOrderId);
       const updated = {
         ...o,
         partyName, state, gst, orderNo, orderDate, indentNo, quoteNo, quoteDate, paymentDate,
         itemDrgNo:row.drgNo||'', itemName:row.name||'', itemUnit:row.unit||'piece',
-        machine:row.machine||'', qty, rate, totalAmount:(qty*rate).toFixed(2),
+        machine:row.machine||'', qty, basicRate, discount, rate, totalAmount:(qty*rate).toFixed(2),
         pendingQty: Math.max(0,qty-(parseFloat(o.qtyReceived)||0)),
       };
       await apiPost('update', SHEETS.orders, updated);
@@ -1408,12 +1420,15 @@ async function saveOrder(){
       // New order — save one row per item
       let saved=0;
       for(const row of orderItemRows){
-        const qty=parseFloat(row.qty)||0, rate=parseFloat(row.rate)||0;
+        const qty=parseFloat(row.qty)||0;
+        const basicRate=parseFloat(row.basicRate)||0;
+        const discount=parseFloat(row.discount)||0;
+        const rate=parseFloat(row.rate)||(basicRate*(1-discount/100))||0;
         const o = {
           id: uid(),
           partyName, state, gst, orderNo, orderDate, indentNo, quoteNo, quoteDate, paymentDate,
           itemDrgNo:row.drgNo||'', itemName:row.name||'', itemUnit:row.unit||'piece',
-          machine:row.machine||'', qty, rate, totalAmount:(qty*rate).toFixed(2),
+          machine:row.machine||'', qty, basicRate, discount, rate, totalAmount:(qty*rate).toFixed(2),
           dispatchStatus:'PENDING', qtyReceived:0, pendingQty:qty,
           transport:'', lrNo:'', lrDate:'', bill:'', billDate:'', receivedDate:'',
           itemsJson:''
@@ -1452,17 +1467,17 @@ async function deleteSingleRow(id){
 
 async function deleteOrderGroup(orderNo){
   if(!isAdmin()||!confirm(`Delete ALL items in order ${orderNo}?`))return;
-  const toDelete = orders.filter(o=>(o.orderNo||'').trim()===orderNo);
+  const toDelete = orders.filter(o=>String(o.orderNo||'').trim()===orderNo);
   try{
     for(const o of toDelete) await apiPost('delete',SHEETS.orders,{id:o.id});
-    orders = orders.filter(o=>(o.orderNo||'').trim()!==orderNo);
+    orders = orders.filter(o=>String(o.orderNo||'').trim()!==orderNo);
     addLog('delete',`Deleted entire order ${orderNo} (${toDelete.length} items)`);
     renderOrders(); renderDashboard(); populateFilterDropdowns(); toast('Order deleted.');
   }catch(e){toast('Delete failed',true);}
 }
 
 function openGroupReceiptModal(orderNo){
-  const rows = orders.filter(o=>(o.orderNo||'').trim()===orderNo);
+  const rows = orders.filter(o=>String(o.orderNo||'').trim()===orderNo);
   if(!rows.length){ toast('No items found for this order',true); return; }
   receiptOrderIds = rows.map(r=>r.id);
   receiptOrderNo  = orderNo;
