@@ -354,7 +354,21 @@
         <th style="width:130px;">Actions</th>
       </tr></thead>
       <tbody id="orders-tbody"></tbody></table>
-      <div class="pagination"><span id="page-info">Showing 0 of 0</span><div class="page-btns" id="page-btns"></div></div>
+      <div class="pagination">
+        <span id="page-info">Showing 0 of 0</span>
+        <div class="page-btns" id="page-btns"></div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-muted);">
+          Show
+          <select id="pageSizeSelect" onchange="changePageSize()" style="padding:3px 8px;font-size:13px;border-radius:6px;background:var(--surface2);border:1px solid var(--border);color:var(--text);">
+            <option value="10">10</option>
+            <option value="15" selected>15</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+          per page
+        </div>
+      </div>
     </div>
   </div>
 
@@ -647,8 +661,8 @@ let orders=[], items=[], parties=[], machines=[];
 let editingOrderId=null, editingItemId=null, editingPartyId=null, editingUserId=null;
 let receiptOrderId=null;
 let currentPage=1;
-const PAGE_SIZE=15;
-let sortKey='orderNo', sortDir=1;
+let PAGE_SIZE=15;
+let sortKey='orderNo', sortDir=-1; // biggest order no first by default
 const SHEETS={orders:'Orders',items:'Items',parties:'Parties',machines:'Machines'};
 
 // ══════════════════════════════════════════════════════════════
@@ -1041,6 +1055,14 @@ function getFilteredOrders(){
     return textOk&&statusOk&&partyOk&&machineOk&&drgOk&&dateOk;
   }).sort((a,b)=>{
     let av=a[sortKey]||'',bv=b[sortKey]||'';
+    // Natural sort for order numbers (handles 1842, 1839A, 1840B etc)
+    if(sortKey==='orderNo'){
+      const na=parseFloat(String(av).replace(/[^0-9.]/g,''))||0;
+      const nb=parseFloat(String(bv).replace(/[^0-9.]/g,''))||0;
+      if(na!==nb) return na>nb?sortDir:na<nb?-sortDir:0;
+      // If numbers equal, compare full string
+      return String(av)>String(bv)?sortDir:String(av)<String(bv)?-sortDir:0;
+    }
     if(!isNaN(av)&&!isNaN(bv)){av=parseFloat(av)||0;bv=parseFloat(bv)||0;}
     return av>bv?sortDir:av<bv?-sortDir:0;
   });
@@ -1072,9 +1094,17 @@ function renderOrders(){
   const groups = {};
   const groupOrder = [];
   filtered.forEach(o=>{
-    const key = String(o.orderNo||o.id||"").trim();
+    const key = String(o.orderNo||o.id||'').trim();
     if(!groups[key]){ groups[key]=[]; groupOrder.push(key); }
     groups[key].push(o);
+  });
+
+  // Sort groups by orderNo — biggest number first
+  groupOrder.sort(function(a,b){
+    const na=parseFloat(String(a).replace(/[^0-9.]/g,''))||0;
+    const nb=parseFloat(String(b).replace(/[^0-9.]/g,''))||0;
+    if(na!==nb) return nb-na; // descending
+    return String(b)>String(a)?1:String(b)<String(a)?-1:0;
   });
 
   // Paginate by group
@@ -1153,7 +1183,17 @@ function renderOrders(){
 
 function escH(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-function gotoPage(p){const tp=Math.ceil(Object.keys(groupOrders()).length/PAGE_SIZE)||1;currentPage=Math.max(1,Math.min(p,tp));renderOrders();}
+function gotoPage(p){
+  const filtered=getFilteredOrders();
+  const g={};filtered.forEach(function(o){const k=(o.orderNo||o.id).trim();if(!g[k])g[k]=1;});
+  const tp=Math.ceil(Object.keys(g).length/PAGE_SIZE)||1;
+  currentPage=Math.max(1,Math.min(p,tp));
+  renderOrders();
+}
+function changePageSize(){
+  const sel=document.getElementById('pageSizeSelect');
+  if(sel){ PAGE_SIZE=parseInt(sel.value)||15; currentPage=1; renderOrders(); }
+}
 function groupOrders(){
   const g={};
   orders.forEach(o=>{const k=String(o.orderNo||o.id||"").trim();if(!g[k])g[k]=[];g[k].push(o);});
