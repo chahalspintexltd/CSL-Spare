@@ -270,6 +270,22 @@
 
   <!-- DASHBOARD -->
   <div class="panel active" id="panel-dashboard">
+    <div class="filter-panel open" style="padding:14px 20px;">
+      <div class="filter-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));align-items:end;margin-bottom:0;">
+        <div class="field">
+          <label>From Date</label>
+          <input type="date" id="dash-dateFrom">
+        </div>
+        <div class="field">
+          <label>To Date</label>
+          <input type="date" id="dash-dateTo">
+        </div>
+        <div class="field" style="display:flex;gap:8px;">
+          <button class="btn btn-primary" onclick="renderDashboard()">Submit</button>
+          <button class="btn btn-ghost" onclick="clearDashRange()">Clear</button>
+        </div>
+      </div>
+    </div>
     <div class="cards">
       <div class="card"><div class="card-label">Total Orders</div><div class="card-value c-orange" id="d-total">0</div><div class="card-sub">All time</div></div>
       <div class="card"><div class="card-label">Fully Received</div><div class="card-value c-green" id="d-full">0</div><div class="card-sub">Complete</div></div>
@@ -288,7 +304,7 @@
       👤 You are logged in as <strong>User</strong> — you can add orders but cannot edit or delete existing ones.
     </div>
     <div class="toolbar">
-      <input class="search-box" type="text" id="orderSearch" placeholder="🔍  Search by order no, party, item, DRG, machine..." oninput="renderOrders()">
+      <input class="search-box" type="text" id="orderSearch" placeholder="🔍  Search by order no, party, item, DRG, machine..." oninput="currentPage=1;renderOrders()">
       <button class="btn btn-ghost" onclick="toggleFilters()" id="filterToggleBtn">⚙️ Filters</button>
       <button class="btn btn-primary" onclick="openModal()">+ Add Order</button>
     </div>
@@ -297,12 +313,15 @@
     <div class="filter-panel" id="filterPanel">
       <div class="filter-panel-header">
         <div class="filter-panel-title">🔍 Filter Orders</div>
-        <button class="btn btn-ghost btn-sm" onclick="clearFilters()">✕ Clear All</button>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary btn-sm" onclick="currentPage=1;renderOrders()">Submit</button>
+          <button class="btn btn-ghost btn-sm" onclick="clearFilters()">✕ Clear All</button>
+        </div>
       </div>
       <div class="filter-grid">
         <div class="field">
           <label>Dispatch Status</label>
-          <select id="flt-status" onchange="renderOrders()">
+          <select id="flt-status">
             <option value="">All Status</option>
             <option value="FULL">Full Dispatch</option>
             <option value="PARTIAL">Partial</option>
@@ -311,27 +330,31 @@
         </div>
         <div class="field">
           <label>Machine</label>
-          <select id="flt-machine" onchange="renderOrders()">
+          <select id="flt-machine">
             <option value="">All Machines</option>
           </select>
         </div>
         <div class="field">
           <label>Party</label>
-          <select id="flt-party" onchange="renderOrders()">
+          <select id="flt-party">
             <option value="">All Parties</option>
           </select>
         </div>
         <div class="field">
           <label>DRG No</label>
-          <input type="text" id="flt-drg" placeholder="e.g. DRG-001" oninput="renderOrders()">
+          <input type="text" id="flt-drg" placeholder="e.g. DRG-001">
+        </div>
+        <div class="field">
+          <label>Item / Part Name</label>
+          <input type="text" id="flt-itemname" placeholder="Type to search part name..." oninput="currentPage=1;renderOrders()">
         </div>
         <div class="field">
           <label>Order Date From</label>
-          <input type="date" id="flt-dateFrom" onchange="renderOrders()">
+          <input type="date" id="flt-dateFrom">
         </div>
         <div class="field">
           <label>Order Date To</label>
-          <input type="date" id="flt-dateTo" onchange="renderOrders()">
+          <input type="date" id="flt-dateTo">
         </div>
       </div>
     </div>
@@ -959,18 +982,36 @@ function switchTab(name){
 // ══════════════════════════════════════════════════════════════
 //  DASHBOARD
 // ══════════════════════════════════════════════════════════════
+function clearDashRange(){
+  document.getElementById('dash-dateFrom').value='';
+  document.getElementById('dash-dateTo').value='';
+  renderDashboard();
+}
+function getDashFilteredOrders(){
+  const from=document.getElementById('dash-dateFrom')?.value||'';
+  const to=document.getElementById('dash-dateTo')?.value||'';
+  if(!from && !to) return orders;
+  return orders.filter(o=>{
+    if(!o.orderDate) return false;
+    const d=String(o.orderDate).slice(0,10);
+    if(from && d<from) return false;
+    if(to && d>to) return false;
+    return true;
+  });
+}
 function renderDashboard(){
-  const total=orders.length,full=orders.filter(o=>o.dispatchStatus==='FULL').length,partial=orders.filter(o=>o.dispatchStatus==='PARTIAL').length,
-    pending=orders.filter(o=>o.dispatchStatus==='PENDING'||!o.dispatchStatus).length,
-    amount=orders.reduce((s,o)=>s+(parseFloat(o.totalAmount)||0),0),
-    uItems=new Set(orders.map(o=>o.itemDrgNo).filter(Boolean)).size;
+  const filtered=getDashFilteredOrders();
+  const total=filtered.length,full=filtered.filter(o=>o.dispatchStatus==='FULL').length,partial=filtered.filter(o=>o.dispatchStatus==='PARTIAL').length,
+    pending=filtered.filter(o=>o.dispatchStatus==='PENDING'||!o.dispatchStatus).length,
+    amount=filtered.reduce((s,o)=>s+(parseFloat(o.totalAmount)||0),0),
+    uItems=new Set(filtered.map(o=>o.itemDrgNo).filter(Boolean)).size;
   document.getElementById('d-total').textContent=total;document.getElementById('d-full').textContent=full;
   document.getElementById('d-partial').textContent=partial;document.getElementById('d-pending').textContent=pending;
   document.getElementById('d-amount').textContent='₹'+fmtAmt(amount);document.getElementById('d-items').textContent=uItems;
   document.getElementById('hTotalOrders').textContent=total;document.getElementById('hTotalValue').textContent='₹'+fmtAmt(amount);
-  const recent=[...orders].reverse().slice(0,8);
+  const recent=[...filtered].reverse().slice(0,8);
   const tb=document.getElementById('recent-tbody');
-  if(!recent.length){tb.innerHTML=`<tr><td colspan="5"><div class="empty"><div class="empty-icon">📦</div>No orders yet</div></td></tr>`;return;}
+  if(!recent.length){tb.innerHTML=`<tr><td colspan="5"><div class="empty"><div class="empty-icon">📦</div>No orders in this range</div></td></tr>`;return;}
   tb.innerHTML=recent.map(o=>`<tr><td><strong>${o.orderNo||'—'}</strong></td><td>${o.partyName||'—'}</td><td>${getOrderItemsSummary(o)}</td><td class="amt">₹${fmtAmt(o.totalAmount)}</td><td>${statusBadge(o.dispatchStatus)}</td></tr>`).join('');
 }
 function fmtAmt(v){const n=parseFloat(v)||0;if(n>=10000000)return(n/10000000).toFixed(2)+'Cr';if(n>=100000)return(n/100000).toFixed(2)+'L';return n.toLocaleString('en-IN');}
@@ -1024,7 +1065,8 @@ function toggleFilters(){
 }
 function clearFilters(){
   ['flt-status','flt-machine','flt-party'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  ['flt-drg','flt-dateFrom','flt-dateTo'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['flt-drg','flt-itemname','flt-dateFrom','flt-dateTo'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  currentPage=1;
   renderOrders();
 }
 function refreshPartyFilter(){
@@ -1039,6 +1081,7 @@ function getFilteredOrders(){
   const fMachine=document.getElementById('flt-machine')?.value||'';
   const fParty=document.getElementById('flt-party')?.value||'';
   const fDrg=(document.getElementById('flt-drg')?.value||'').toLowerCase();
+  const fItemName=(document.getElementById('flt-itemname')?.value||'').toLowerCase();
   const fFrom=document.getElementById('flt-dateFrom')?.value||'';
   const fTo=document.getElementById('flt-dateTo')?.value||'';
 
@@ -1051,8 +1094,9 @@ function getFilteredOrders(){
     const partyOk=!fParty||(o.partyName===fParty);
     const machineOk=!fMachine||its.some(i=>i.machine===fMachine);
     const drgOk=!fDrg||its.some(i=>(i.drgNo||'').toLowerCase().includes(fDrg));
+    const itemNameOk=!fItemName||its.some(i=>(i.name||'').toLowerCase().includes(fItemName));
     const dateOk=(!fFrom||o.orderDate>=fFrom)&&(!fTo||o.orderDate<=fTo);
-    return textOk&&statusOk&&partyOk&&machineOk&&drgOk&&dateOk;
+    return textOk&&statusOk&&partyOk&&machineOk&&drgOk&&itemNameOk&&dateOk;
   }).sort((a,b)=>{
     let av=a[sortKey]||'',bv=b[sortKey]||'';
     // Natural sort for order numbers (handles 1842, 1839A, 1840B etc)
@@ -1070,31 +1114,21 @@ function getFilteredOrders(){
 function sortOrders(k){if(sortKey===k)sortDir*=-1;else{sortKey=k;sortDir=1;}renderOrders();}
 
 function renderOrders(){
-  const q=(document.getElementById('orderSearch')?.value||'').toLowerCase();
-  const fParty=document.getElementById('fParty')?.value||'';
-  const fMachine=document.getElementById('fMachine')?.value||'';
-  const fDrg=document.getElementById('fDrg')?.value||'';
-  const fStatus=document.getElementById('fStatus')?.value||'';
-  const fDays=parseInt(document.getElementById('fDateRange')?.value||'0');
-  const cutoff=fDays?new Date(Date.now()-fDays*86400000).toISOString().slice(0,10):'';
+  // Determine which orders match the current filters
+  let filtered = getFilteredOrders();
 
-  // Filter individual rows first
-  let filtered = orders.filter(o=>{
-    const s=[o.orderNo,o.partyName,o.itemName,o.itemDrgNo,o.machine,o.state].map(x=>String(x||'')).join(' ').toLowerCase();
-    if(q && !s.includes(q)) return false;
-    if(fParty && o.partyName!==fParty) return false;
-    if(fMachine && o.machine!==fMachine) return false;
-    if(fDrg && o.itemDrgNo!==fDrg) return false;
-    if(fStatus && o.dispatchStatus!==fStatus) return false;
-    if(cutoff && o.orderDate && String(o.orderDate).slice(0,10)<cutoff) return false;
-    return true;
-  });
+  // Collect the set of matched orderNo keys
+  const matchedKeys = new Set();
+  filtered.forEach(o=>{ matchedKeys.add(String(o.orderNo||o.id||'').trim()); });
 
-  // Group by orderNo
+  // Group by orderNo — but pull ALL items belonging to a matched order
+  // (not just the ones that matched the filter) so nothing gets hidden
+  // inside an order that already matched.
   const groups = {};
   const groupOrder = [];
-  filtered.forEach(o=>{
+  orders.forEach(o=>{
     const key = String(o.orderNo||o.id||'').trim();
+    if(!matchedKeys.has(key)) return;
     if(!groups[key]){ groups[key]=[]; groupOrder.push(key); }
     groups[key].push(o);
   });
@@ -1120,6 +1154,10 @@ function renderOrders(){
     return;
   }
 
+  // Item/Part Name value — used only to highlight the matching item row,
+  // never to hide other items in an already-matched order.
+  const hlItemName=(document.getElementById('flt-itemname')?.value||'').trim().toLowerCase();
+
   let html2='';
   pageGroups.forEach(function(key){
     var rows=groups[key], first=rows[0];
@@ -1127,9 +1165,10 @@ function renderOrders(){
     var totalPend=rows.reduce(function(s,r){return s+(parseFloat(r.pendingQty)||0);},0);
     var groupSt=calcGroupStatus(rows);
     var safeKey=key.replace(/[^a-zA-Z0-9]/g,'_');
+    var groupHasItemMatch = !!hlItemName && rows.some(function(r){return (r.itemName||'').toLowerCase().includes(hlItemName);});
 
     html2+='<tr style="background:var(--surface2);border-top:2px solid var(--border);">'
-      +'<td style="padding:8px 10px;"><button class="grp-toggle" data-key="'+safeKey+'" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:13px;">▶</button></td>'
+      +'<td style="padding:8px 10px;"><button class="grp-toggle" data-key="'+safeKey+'" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:13px;">'+(groupHasItemMatch?'▼':'▶')+'</button></td>'
       +'<td style="padding:8px 10px;"><strong>'+escH(first.orderNo||'—')+'</strong></td>'
       +'<td style="padding:8px 10px;"><strong>'+escH(first.partyName||'—')+'</strong><div style="font-size:11px;color:var(--text-muted);">'+escH(first.state||'')+'</div></td>'
       +'<td style="padding:8px 10px;font-size:12px;color:var(--text-muted);">'+fmtDate(first.orderDate)+'</td>'
@@ -1149,10 +1188,12 @@ function renderOrders(){
 
     rows.forEach(function(r){
       var st=getItemStatus(r), pend=parseFloat(r.pendingQty)||0, id=r.id;
-      html2+='<tr class="irow-'+safeKey+'" style="display:none;border-top:1px solid var(--border);">'
+      var isItemMatch = !!hlItemName && (r.itemName||'').toLowerCase().includes(hlItemName);
+      var rowStyle='border-top:1px solid var(--border);'+(groupHasItemMatch?'':'display:none;')+(isItemMatch?'background:rgba(249,115,22,0.15);':'');
+      html2+='<tr class="irow-'+safeKey+'" style="'+rowStyle+'">'
         +'<td></td>'
         +'<td style="padding:5px 10px;font-size:11px;color:var(--accent);font-weight:700;">'+escH(r.itemDrgNo||'—')+'</td>'
-        +'<td style="padding:5px 10px;">'+escH(r.itemName||'—')+'</td>'
+        +'<td style="padding:5px 10px;'+(isItemMatch?'font-weight:700;':'')+'">'+escH(r.itemName||'—')+(isItemMatch?' <span style="font-size:10px;color:var(--accent);">★ match</span>':'')+'</td>'
         +'<td style="padding:5px 10px;font-size:11px;color:var(--text-muted);">'+escH(r.machine||'—')+'</td>'
         +'<td style="padding:5px 10px;font-size:11px;color:var(--text-muted);">'+fmtDate(r.orderDate)+'</td>'
         +'<td></td><td></td>'
@@ -1185,7 +1226,7 @@ function escH(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'
 
 function gotoPage(p){
   const filtered=getFilteredOrders();
-  const g={};filtered.forEach(function(o){const k=(o.orderNo||o.id).trim();if(!g[k])g[k]=1;});
+  const g={};filtered.forEach(function(o){const k=String(o.orderNo||o.id||'').trim();if(!g[k])g[k]=1;});
   const tp=Math.ceil(Object.keys(g).length/PAGE_SIZE)||1;
   currentPage=Math.max(1,Math.min(p,tp));
   renderOrders();
