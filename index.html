@@ -363,6 +363,7 @@
       <table><thead><tr>
         <th style="width:28px;"></th>
         <th onclick="sortOrders('orderNo')" style="width:110px;">Order No ↕</th>
+        <th style="width:100px;">Quote No</th>
         <th onclick="sortOrders('partyName')" style="min-width:140px;">Party ↕</th>
         <th onclick="sortOrders('orderDate')" style="width:90px;">Date ↕</th>
         <th style="width:110px;">DRG No</th>
@@ -1170,6 +1171,7 @@ function renderOrders(){
     html2+='<tr style="background:var(--surface2);border-top:2px solid var(--border);">'
       +'<td style="padding:8px 10px;"><button class="grp-toggle" data-key="'+safeKey+'" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:13px;">'+(groupHasItemMatch?'▼':'▶')+'</button></td>'
       +'<td style="padding:8px 10px;"><strong>'+escH(first.orderNo||'—')+'</strong></td>'
+      +'<td style="padding:8px 10px;font-size:12px;color:var(--text-muted);">'+escH(first.quoteNo||'—')+'</td>'
       +'<td style="padding:8px 10px;"><strong>'+escH(first.partyName||'—')+'</strong><div style="font-size:11px;color:var(--text-muted);">'+escH(first.state||'')+'</div></td>'
       +'<td style="padding:8px 10px;font-size:12px;color:var(--text-muted);">'+fmtDate(first.orderDate)+'</td>'
       +'<td colspan="6" style="padding:8px 10px;">'
@@ -1191,6 +1193,7 @@ function renderOrders(){
       var isItemMatch = !!hlItemName && (r.itemName||'').toLowerCase().includes(hlItemName);
       var rowStyle='border-top:1px solid var(--border);'+(groupHasItemMatch?'':'display:none;')+(isItemMatch?'background:rgba(249,115,22,0.15);':'');
       html2+='<tr class="irow-'+safeKey+'" style="'+rowStyle+'">'
+        +'<td></td>'
         +'<td></td>'
         +'<td style="padding:5px 10px;font-size:11px;color:var(--accent);font-weight:700;">'+escH(r.itemDrgNo||'—')+'</td>'
         +'<td style="padding:5px 10px;'+(isItemMatch?'font-weight:700;':'')+'">'+escH(r.itemName||'—')+(isItemMatch?' <span style="font-size:10px;color:var(--accent);">★ match</span>':'')+'</td>'
