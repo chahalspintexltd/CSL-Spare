@@ -127,6 +127,19 @@
 
   .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:28px;}
   .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;}
+
+  /* ---- Report tab layout ---- */
+  .report-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;padding-bottom:16px;border-bottom:2px solid var(--border);}
+  .report-head h2{font-size:18px;}
+  .report-head .meta{font-size:12px;color:var(--text-muted);margin-top:4px;}
+  .order-block{border:1px solid var(--border);border-radius:10px;margin-bottom:16px;overflow:hidden;}
+  .order-head{background:var(--surface2);padding:12px 16px;display:flex;flex-wrap:wrap;gap:20px;align-items:center;}
+  .order-head .k{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;}
+  .order-head .v{font-size:13px;font-weight:700;}
+  .order-footer{padding:10px 16px;background:var(--surface2);font-size:12px;color:var(--text-muted);display:flex;gap:18px;flex-wrap:wrap;}
+  .order-footer b{color:var(--text);}
+  .grand-total{display:flex;justify-content:flex-end;gap:24px;padding:16px 4px 4px;font-size:14px;}
+  .grand-total b{color:var(--accent);font-size:18px;}
   .card-label{font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;}
   .card-value{font-size:32px;font-weight:800;}
   .card-sub{font-size:12px;color:var(--text-muted);margin-top:4px;}
@@ -167,6 +180,28 @@
   .machine-tag{display:inline-block;background:rgba(249,115,22,0.15);color:var(--accent);border-radius:4px;padding:1px 6px;font-size:11px;margin-left:4px;}
 
   @media(max-width:600px){.form-grid,.order-item-grid,.filter-grid{grid-template-columns:1fr;}.header-stats{display:none;}}
+
+  /* ---- PRINT (Report tab only) ---- */
+  @media print {
+    body *{visibility:hidden;}
+    #panel-report, #panel-report *{visibility:visible;}
+    #panel-report{position:absolute;left:0;top:0;width:100%;}
+    #panel-report .no-print{display:none !important;}
+    body{background:#fff;}
+    #panel-report{background:#fff;color:#000;}
+    #panel-report .table-wrap{border:none;background:#fff;}
+    #panel-report .order-block{border:1px solid #999;break-inside:avoid;page-break-inside:avoid;background:#fff;}
+    #panel-report .order-head{background:#f0f0f0;}
+    #panel-report .order-head .v,#panel-report .order-head .k,#panel-report .report-head h2,#panel-report .report-head .meta{color:#000;}
+    #panel-report th{color:#000;border-bottom:1px solid #999;background:#f7f7f7;}
+    #panel-report td{color:#000;border-bottom:1px solid #ddd;}
+    #panel-report .order-footer{background:#f7f7f7;color:#000;}
+    #panel-report .order-footer b{color:#000;}
+    #panel-report .amt{color:#000;}
+    #panel-report .badge{border:1px solid #999;background:#fff !important;color:#000 !important;}
+    #panel-report .grand-total{color:#000;}
+    #panel-report .grand-total b{color:#000;}
+  }
 </style>
 </head>
 <body>
@@ -268,6 +303,7 @@
     <button class="tab" onclick="switchTab('parties')">🏭 Parties</button>
     <button class="tab" id="adminTab" style="display:none" onclick="switchTab('admin')">🛡️ Admin</button>
     <button class="tab" id="logTab" style="display:none" onclick="switchTab('log')">📒 Log Book</button>
+    <button class="tab" onclick="switchTab('report')">🖨️ Report</button>
   </div>
 
   <!-- DASHBOARD -->
@@ -461,6 +497,51 @@
         <button class="btn btn-danger btn-sm" onclick="clearLog()">Clear Log</button>
       </div>
       <div id="logList"><div class="empty"><div class="empty-icon">📒</div>No activity logged yet.</div></div>
+    </div>
+  </div>
+
+  <!-- REPORT -->
+  <div class="panel" id="panel-report">
+    <div class="filter-panel open no-print" style="padding:14px 20px;">
+      <div class="filter-panel-title" style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);margin-bottom:14px;">🔍 Report Filters</div>
+      <div class="filter-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
+        <div class="field">
+          <label>From Date</label>
+          <input type="date" id="r-dateFrom">
+        </div>
+        <div class="field">
+          <label>To Date</label>
+          <input type="date" id="r-dateTo">
+        </div>
+        <div class="field">
+          <label>Party</label>
+          <select id="r-party"><option value="">All Parties</option></select>
+        </div>
+        <div class="field">
+          <label>Status</label>
+          <select id="r-status">
+            <option value="">All Status</option>
+            <option value="FULL">Fully Received</option>
+            <option value="PARTIAL">Partial</option>
+            <option value="PENDING">Pending</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Machine</label>
+          <select id="r-machine"><option value="">All Machines</option></select>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:16px;">
+        <button class="btn btn-primary" onclick="generateReport()">📊 Generate Report</button>
+        <button class="btn btn-ghost" onclick="clearReportFilters()">✕ Clear Filters</button>
+        <button class="btn btn-ghost" onclick="window.print()" id="printReportBtn" style="margin-left:auto;display:none;">🖨️ Print / Save as PDF</button>
+      </div>
+    </div>
+
+    <div id="reportStatCards" class="cards no-print" style="display:none;margin-bottom:20px;"></div>
+
+    <div class="table-wrap" id="reportWrap" style="padding:20px;">
+      <div class="empty"><div class="empty-icon">📋</div>Set your filters above and click <b>Generate Report</b> to build a printable report.</div>
     </div>
   </div>
 
@@ -715,6 +796,9 @@ function refreshMachineDropdowns() {
   // items tab filter
   const itmSel = document.getElementById('itemMachineFilter');
   if(itmSel){ itmSel.innerHTML='<option value="">All Machines</option>'+mList.map(m=>`<option value="${escH(m)}">${escH(m)}</option>`).join(''); }
+  // report tab filter
+  const repSel = document.getElementById('r-machine');
+  if(repSel){ repSel.innerHTML='<option value="">All Machines</option>'+mList.map(m=>`<option value="${escH(m)}">${escH(m)}</option>`).join(''); }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -975,7 +1059,7 @@ function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(
 // ══════════════════════════════════════════════════════════════
 function switchTab(name){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  const tabs=['dashboard','orders','items','parties','admin','log'];
+  const tabs=['dashboard','orders','items','parties','admin','log','report'];
   document.querySelectorAll('.tab').forEach((b,i)=>{if(tabs[i]===name)b.classList.add('active');});
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.getElementById('panel-'+name).classList.add('active');
@@ -1074,8 +1158,9 @@ function clearFilters(){
 }
 function refreshPartyFilter(){
   const sel=document.getElementById('flt-party');
-  if(!sel)return;
-  sel.innerHTML='<option value="">All Parties</option>'+[...new Set(orders.map(o=>o.partyName).filter(Boolean))].sort().map(p=>`<option value="${p}">${p}</option>`).join('');
+  if(sel) sel.innerHTML='<option value="">All Parties</option>'+[...new Set(orders.map(o=>o.partyName).filter(Boolean))].sort().map(p=>`<option value="${p}">${p}</option>`).join('');
+  const repSel=document.getElementById('r-party');
+  if(repSel) repSel.innerHTML='<option value="">All Parties</option>'+[...new Set(orders.map(o=>o.partyName).filter(Boolean))].sort().map(p=>`<option value="${p}">${p}</option>`).join('');
 }
 
 function getFilteredOrders(){
@@ -1939,6 +2024,138 @@ function itemStatusBadge(s){
   if(s==='TRANSIT')  return '<span class="badge" style="background:#1e3a5f;color:#60a5fa;">🚚 In Transit</span>';
   if(s==='PARTIAL')  return '<span class="badge badge-partial">⏳ Partial</span>';
   return '<span class="badge badge-pending">🕐 Pending</span>';
+}
+
+// ══════════════════════════════════════════════════════════════
+//  REPORT
+// ══════════════════════════════════════════════════════════════
+function clearReportFilters(){
+  ['r-dateFrom','r-dateTo','r-party','r-status','r-machine'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+}
+
+function generateReport(){
+  const from=document.getElementById('r-dateFrom')?.value||'';
+  const to=document.getElementById('r-dateTo')?.value||'';
+  const party=document.getElementById('r-party')?.value||'';
+  const status=document.getElementById('r-status')?.value||'';
+  const machine=document.getElementById('r-machine')?.value||'';
+
+  const rowsMatched = orders.filter(function(o){
+    const d=String(o.orderDate||'').slice(0,10);
+    if(from && d<from) return false;
+    if(to && d>to) return false;
+    if(party && o.partyName!==party) return false;
+    if(machine && o.machine!==machine) return false;
+    return true;
+  });
+
+  const matchedKeys=new Set(rowsMatched.map(function(o){return String(o.orderNo||o.id||'').trim();}));
+  const groups={}; const groupOrder=[];
+  orders.forEach(function(o){
+    const key=String(o.orderNo||o.id||'').trim();
+    if(!matchedKeys.has(key)) return;
+    if(!groups[key]){ groups[key]=[]; groupOrder.push(key); }
+    groups[key].push(o);
+  });
+
+  let finalKeys=groupOrder;
+  if(status){
+    finalKeys=groupOrder.filter(function(key){ return calcGroupStatus(groups[key])===status; });
+  }
+
+  finalKeys.sort(function(a,b){
+    const na=parseFloat(String(a).replace(/[^0-9.]/g,''))||0;
+    const nb=parseFloat(String(b).replace(/[^0-9.]/g,''))||0;
+    if(na!==nb) return nb-na;
+    return String(b)>String(a)?1:String(b)<String(a)?-1:0;
+  });
+
+  renderReport(finalKeys, groups, {from:from,to:to,party:party,status:status,machine:machine});
+}
+
+function renderReport(keys, groups, filtersUsed){
+  const wrap=document.getElementById('reportWrap');
+  const statCards=document.getElementById('reportStatCards');
+  const printBtn=document.getElementById('printReportBtn');
+
+  if(!keys.length){
+    wrap.innerHTML='<div class="empty"><div class="empty-icon">🔍</div>No orders match these filters.</div>';
+    statCards.style.display='none';
+    printBtn.style.display='none';
+    return;
+  }
+
+  let grandTotal=0, grandPending=0, totalItems=0, bodyHtml='';
+
+  keys.forEach(function(key){
+    const rows=groups[key];
+    const first=rows[0];
+    const its=[]; rows.forEach(function(r){ getOrderItems(r).forEach(function(i){ its.push(i); }); });
+    const orderTotal=its.reduce(function(s,i){return s+(parseFloat(i.amount)||0);},0);
+    const orderPending=its.reduce(function(s,i){return s+(parseFloat(i.pendingQty)||0);},0);
+    const st=calcGroupStatus(rows);
+    grandTotal+=orderTotal; grandPending+=orderPending; totalItems+=its.length;
+
+    bodyHtml+='<div class="order-block">'
+      +'<div class="order-head">'
+        +'<div><div class="k">Order No</div><div class="v">'+escH(first.orderNo||'—')+'</div></div>'
+        +'<div><div class="k">Quote No</div><div class="v">'+escH(first.quoteNo||'—')+'</div></div>'
+        +'<div><div class="k">Party</div><div class="v">'+escH(first.partyName||'—')+'</div></div>'
+        +'<div><div class="k">State</div><div class="v">'+escH(first.state||'—')+'</div></div>'
+        +'<div><div class="k">GST</div><div class="v">'+escH(first.gst||'—')+'</div></div>'
+        +'<div><div class="k">Order Date</div><div class="v">'+fmtDate(first.orderDate)+'</div></div>'
+        +'<div><div class="k">Payment Date</div><div class="v">'+fmtDate(first.paymentDate)+'</div></div>'
+        +'<div><div class="k">Bill No</div><div class="v">'+escH(first.bill||'—')+'</div></div>'
+        +'<div><div class="k">Status</div><div class="v">'+statusBadge(st)+'</div></div>'
+      +'</div>'
+      +'<table><thead><tr><th>DRG No</th><th>Item Name</th><th>Machine</th><th>Qty</th><th>Rate</th><th>Amount</th><th>Received</th><th>Pending</th><th>Status</th></tr></thead><tbody>'
+        +its.map(function(i){
+          return '<tr>'
+            +'<td>'+escH(i.drgNo||'—')+'</td>'
+            +'<td>'+escH(i.name||'—')+'</td>'
+            +'<td>'+escH(i.machine||'—')+'</td>'
+            +'<td>'+(i.qty||0)+'</td>'
+            +'<td>₹'+fmtAmt(i.rate)+'</td>'
+            +'<td class="amt">₹'+fmtAmt(i.amount)+'</td>'
+            +'<td>'+(i.qtyReceived||0)+'</td>'
+            +'<td>'+(i.pendingQty||0)+'</td>'
+            +'<td>'+statusBadge(i.dispatchStatus)+'</td>'
+          +'</tr>';
+        }).join('')
+      +'</tbody></table>'
+      +'<div class="order-footer">'
+        +'<div>Transport: <b>'+escH(first.transport||'—')+'</b></div>'
+        +'<div>LR No: <b>'+escH(first.lrNo||'—')+'</b></div>'
+        +'<div>LR Date: <b>'+fmtDate(first.lrDate)+'</b></div>'
+        +'<div>Received Date: <b>'+fmtDate(first.receivedDate)+'</b></div>'
+        +'<div>Order Total: <b class="amt">₹'+fmtAmt(orderTotal)+'</b></div>'
+      +'</div>'
+    +'</div>';
+  });
+
+  const rangeLabel=(filtersUsed.from||filtersUsed.to)
+    ? ((filtersUsed.from?fmtDate(filtersUsed.from):'Start')+' – '+(filtersUsed.to?fmtDate(filtersUsed.to):'Today'))
+    : 'All time';
+
+  wrap.innerHTML='<div class="report-head"><div>'
+    +'<h2>Spare Parts Order Report</h2>'
+    +'<div class="meta">Date range: '+rangeLabel+(filtersUsed.party?(' · Party: '+escH(filtersUsed.party)):'')+(filtersUsed.status?(' · Status: '+escH(filtersUsed.status)):'')+(filtersUsed.machine?(' · Machine: '+escH(filtersUsed.machine)):'')+'</div>'
+    +'<div class="meta">Generated on '+new Date().toLocaleString('en-IN')+'</div>'
+  +'</div></div>'
+  +bodyHtml
+  +'<div class="grand-total">'
+    +'<div>Total Orders: <b>'+keys.length+'</b></div>'
+    +'<div>Total Items: <b>'+totalItems+'</b></div>'
+    +'<div>Pending Qty: <b>'+grandPending+'</b></div>'
+    +'<div>Grand Total: <b>₹'+fmtAmt(grandTotal)+'</b></div>'
+  +'</div>';
+
+  statCards.style.display='grid';
+  statCards.innerHTML='<div class="card"><div class="card-label">Orders in Report</div><div class="card-value c-orange">'+keys.length+'</div></div>'
+    +'<div class="card"><div class="card-label">Total Items</div><div class="card-value c-green">'+totalItems+'</div></div>'
+    +'<div class="card"><div class="card-label">Pending Qty</div><div class="card-value c-red">'+grandPending+'</div></div>'
+    +'<div class="card"><div class="card-label">Grand Total</div><div class="card-value c-orange">₹'+fmtAmt(grandTotal)+'</div></div>';
+  printBtn.style.display='inline-flex';
 }
 
 // ══════════════════════════════════════════
